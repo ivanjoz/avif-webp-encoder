@@ -2,20 +2,9 @@ use image::{io::Reader as ImageReader, DynamicImage, GenericImageView};
 use load_image::{self, export::rgb::{self}};
 use base64::prelude::*;
 use webp;
+use serde_json;
+use serde::Serialize;
 // build for lambda arm: cargo build --target aarch64-unknown-linux-gnu --release
-struct ConverArgs {
-    // create mutable property image
-    image: DynamicImage,
-    resolutions: Vec<u32>,
-    output_directory: String,
-    name: String,
-    webp_quality: u32,
-    webp_method: i32,
-    avif_quality: u32,
-    avif_speed: u8,
-    use_webp: bool,
-    use_avif: bool,
-}
 fn main() {
     let mut convert_args = ConverArgs {
         image: DynamicImage::new_rgba8(0, 0),
@@ -28,6 +17,7 @@ fn main() {
         avif_speed: 2,
         use_webp: false,
         use_avif: false,
+        output_cli: false,
     };
 
     //get execution arguments in a variable
@@ -60,6 +50,7 @@ fn main() {
             return;
         }
         convert_args.image = image.unwrap();
+        convert_args.output_cli = true;
     } else {
         let image_path: String;
         if &first_arg[0..1] == "-" {
@@ -137,15 +128,15 @@ fn main() {
 
 fn convert_image(args: ConverArgs) {
     
-    let mut dimensions: Vec<(u32, u32)> = Vec::new();
+    let mut dimensions: Vec<(u32, u32, u32)> = Vec::new();
 
     for width in args.resolutions {
         let height = args.image.height() * width / args.image.width();
-        dimensions.push((width, height));   
+        dimensions.push((width, width, height));   
     }
 
     // Crea los archivos .webp
-    for (width, height) in dimensions {
+    for (resolution, width, height) in dimensions {
         let image_resized = args.image.resize(
             width, height, image::imageops::FilterType::Triangle);
         if args.use_webp { // WEBP
@@ -160,10 +151,26 @@ fn convert_image(args: ConverArgs) {
     
             // Encode the image at a specified quality 0-100
             let webp:  webp::WebPMemory = encoder.encode_advanced(&config).unwrap();
-            let file_name_webp = format!("{}/{}-{}px.{}",args.output_directory, args.name, width, "webp");
-            std::fs::write(&file_name_webp, &*webp).unwrap();
-    
-            println!("Imagen WEBP guardada en: {}", &file_name_webp);
+            let file_name = format!("{}-{}px.{}", args.name, width, "webp");
+
+            if args.output_cli {
+
+                let output = OutputCmd{
+                    image: BASE64_STANDARD.encode(&*webp),
+                    name: args.name.clone(),
+                    resolution: resolution,
+                    format: "webp".to_string(),
+                };
+
+                let output_json = serde_json::to_string(&output).unwrap();
+                println!("{}",output_json);
+
+            } else {
+                let file_name_webp = format!("{}/{}",args.output_directory, file_name);
+                std::fs::write(&file_name_webp, &*webp).unwrap();
+        
+                println!("Imagen WEBP guardada en: {}", &file_name_webp);
+            }
         }
         if args.use_avif { // AVIF
             let mut image_vec1s: Vec<rgb::RGBA<u8>> = vec![];
@@ -194,16 +201,56 @@ fn convert_image(args: ConverArgs) {
                 println!("Error encoding image: {}", res.err().unwrap().to_string());
                 return;
             }
-    
-            let file_name_avif = format!("{}/{}-{}px.{}",args.output_directory, args.name, width, "avif");
+            
+            let avif_file = res.unwrap().avif_file;
+            let file_name = format!("{}-{}px.{}", args.name, width, "avif");
+
+            if args.output_cli {
+
+                let output = OutputCmd{
+                    image: BASE64_STANDARD.encode(avif_file),
+                    name: file_name,
+                    resolution: resolution,
+                    format: "webp".to_string(),
+                };
+
+                let output_json = serde_json::to_string(&output).unwrap();
+                println!("{}",output_json);
+
+            } else {
+                let file_name_avif = format!("{}/{}",args.output_directory, file_name);
                     
-            let result_saved = std::fs::write(&file_name_avif, res.unwrap().avif_file);
-            if result_saved.is_err() {
-                println!("Error saving image: {}", result_saved.err().unwrap().to_string());
-                return; 
+                let result_saved = std::fs::write(&file_name_avif, avif_file);
+                if result_saved.is_err() {
+                    println!("Error saving image: {}", result_saved.err().unwrap().to_string());
+                    return; 
+                }
+        
+                println!("Imagen AVIF guardada en: {}", &file_name_avif);
             }
-    
-            println!("Imagen AVIF guardada en: {}", &file_name_avif);
         }
     }
+}
+
+
+struct ConverArgs {
+    image: DynamicImage,
+    resolutions: Vec<u32>,
+    output_directory: String,
+    name: String,
+    webp_quality: u32,
+    webp_method: i32,
+    avif_quality: u32,
+    avif_speed: u8,
+    use_webp: bool,
+    use_avif: bool,
+    output_cli: bool,
+}
+
+#[derive(Serialize)]
+struct OutputCmd {
+    image: String,
+    name: String,
+    resolution: u32,
+    format: String,
 }
