@@ -4,6 +4,7 @@ use base64::prelude::*;
 use webp;
 use serde_json;
 use serde::Serialize;
+use std::io::{self, Read};
 // build for lambda arm: cargo build --target aarch64-unknown-linux-gnu --release
 fn main() {
     let mut convert_args = ConverArgs {
@@ -29,7 +30,7 @@ fn main() {
     for (_, _arg) in args.iter().enumerate(){
         let arg = _arg.trim();
 
-        if arg.len() > 7 && &arg[0..7] == "-image=" {
+        if arg.len() > 7 && &arg[0..7] == "-image=" || arg == "-image-stdin" {
             first_arg = arg.to_string();
             break;
         }
@@ -40,9 +41,29 @@ fn main() {
         }
     }
 
+    let mut image_data = Vec::new();
+
+    // Image as base64 on args
     if first_arg.len() > 7 && &first_arg[0..7] == "-image=" {
         let base64_image = &first_arg[7..];
-        let image_data = BASE64_STANDARD.decode(base64_image).unwrap();
+        image_data = BASE64_STANDARD.decode(base64_image).unwrap();
+    // Image on stdin
+    } else if first_arg == "-image-stdin" {
+        io::stdin().read_to_end(&mut image_data).expect("Failed to read image from stdin");
+        //print the binary image_data as string, just the first 100 byte
+        let mut string_image_data = String::new();
+        let mut count = 0;
+        for byte in image_data.clone() {
+            string_image_data.push_str(&format!("{:02x}", byte));
+            count += 1;
+            if count >= 100 {
+                break;
+            }
+        }
+        print!("Image Data |{}",string_image_data)
+    }
+    
+    if image_data.len() > 0 {
         // read the image data as a DynamicImage object
         let image = image::load_from_memory(&image_data);
         if image.is_err(){
@@ -50,6 +71,7 @@ fn main() {
             return;
         }
         convert_args.image = image.unwrap();
+        println!("Reading image from stdin is ok!");
         convert_args.output_cli = true;
     } else {
         let image_path: String;
@@ -123,6 +145,8 @@ fn main() {
             }
         }
     }
+
+    println!("Convertig: WEBP={} | AVIF={} | OUTPUT_CLI={}", convert_args.use_webp, convert_args.use_avif, convert_args.output_cli);
     convert_image(convert_args);
 }
 

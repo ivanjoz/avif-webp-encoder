@@ -6,7 +6,7 @@ import (
 	_ "embed"
 )
 
-//go:embed linux-amd64
+//go:embed avif-converter
 var binaryExec []byte
 
 func init() {
