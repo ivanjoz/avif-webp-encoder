@@ -235,7 +235,7 @@ fn convert_image(args: ConverArgs) {
                     image: BASE64_STANDARD.encode(avif_file),
                     name: file_name,
                     resolution: resolution,
-                    format: "webp".to_string(),
+                    format: "avif".to_string(),
                 };
 
                 let output_json = serde_json::to_string(&output).unwrap();
