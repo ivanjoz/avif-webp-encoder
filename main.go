@@ -84,20 +84,34 @@ func Convert(args ImageConvertInput) ([]Image, error) {
 
 	// Read the output using a ReadCloser
 	if args.StdoutBufferSize == 0 {
-		args.StdoutBufferSize = 1024 * 2000
+		args.StdoutBufferSize = 1024 * 48
 	}
 	buf := make([]byte, args.StdoutBufferSize)
+	jsonBytes := []byte{}
 
 	for {
 		n, err := stdoutPipe.Read(buf)
+
 		if n > 0 {
-			message := buf[:n]
-			if len(message) > 10 && string(message[0:10]) == `{"image":"` {
+			msg := buf[:n]
+
+			if len(msg) > 2 && strings.Contains(string(msg[len(msg)-3:]), `"}`) {
+				jsonBytes = append(jsonBytes, msg...)
+
 				rec := imageStdOutput{}
-				err := json.Unmarshal(message, &rec)
+				err := json.Unmarshal(jsonBytes, &rec)
 				if err != nil {
+					if len(jsonBytes) > 200 {
+						fmt.Println(string(jsonBytes[:100]), "...", string(jsonBytes[len(jsonBytes)-100:]))
+					}
 					return nil, fmt.Errorf("error parsing JSON output from binary: %v", err)
 				}
+
+				if args.useDebugLogs {
+					fmt.Printf("Image Converted: Name: %v, Size: %v, Format: %v, Resolution: %v\n", rec.Name, int(float32(len(rec.ImageBase64)-1)*0.75), rec.Format, rec.Resolution)
+				}
+
+				jsonBytes = []byte{}
 
 				image := Image{
 					Name:       rec.Name,
@@ -111,6 +125,9 @@ func Convert(args ImageConvertInput) ([]Image, error) {
 				}
 
 				outputImages = append(outputImages, image)
+			} else if len(jsonBytes) > 0 ||
+				(len(msg) > 10 && string(msg[0:10]) == `{"image":"`) {
+				jsonBytes = append(jsonBytes, msg...)
 			}
 		}
 

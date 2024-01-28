@@ -22,3 +22,4 @@ go.work
 avif-webp-encoder
 test_outputs/*
 binaries/avif-converter
+binaries/avif-converter

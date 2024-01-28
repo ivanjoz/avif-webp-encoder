@@ -14,8 +14,8 @@ fn main() {
         name: "".to_string(),
         webp_quality: 82,
         webp_method: 6,
-        avif_quality: 80,
-        avif_speed: 2,
+        avif_quality: 82,
+        avif_speed: 3,
         use_webp: false,
         use_avif: false,
         output_cli: false,
@@ -72,6 +72,9 @@ fn main() {
         }
         convert_args.image = image.unwrap();
         println!("Reading image from stdin is ok!");
+        if convert_args.name.len() == 0 {
+            convert_args.name = "image".to_string();
+        }
         convert_args.output_cli = true;
     } else {
         let image_path: String;
@@ -153,10 +156,17 @@ fn main() {
 fn convert_image(args: ConverArgs) {
     
     let mut dimensions: Vec<(u32, u32, u32)> = Vec::new();
+    let original_size = args.image.height() * args.image.width();
 
-    for width in args.resolutions {
-        let height = args.image.height() * width / args.image.width();
-        dimensions.push((width, width, height));   
+    for resolution in args.resolutions {
+        let new_size = resolution * resolution;
+        let proportion_square = (new_size as f32) / (original_size as f32);
+        let proportion = proportion_square.sqrt();
+
+        let new_width = (args.image.width() as f32 * proportion) as u32;
+        let new_height = (args.image.height() as f32 * proportion) as u32;
+
+        dimensions.push((resolution, new_width, new_height));   
     }
 
     // Crea los archivos .webp
@@ -170,18 +180,18 @@ fn convert_image(args: ConverArgs) {
             let mut config = webp::WebPConfig::new().unwrap();
             config.lossless = 0;
             config.alpha_compression = 1;
-            config.quality = 82.0;
-            config.method = 6; // quality/speed trade-off (0=fast, 6=slower-better)
+            config.quality = args.webp_quality as f32;
+            config.method = args.webp_method; // quality/speed trade-off (0=fast, 6=slower-better)
     
             // Encode the image at a specified quality 0-100
             let webp:  webp::WebPMemory = encoder.encode_advanced(&config).unwrap();
-            let file_name = format!("{}-{}px.{}", args.name, width, "webp");
+            let file_name = format!("{}-{}i-{}x{}.{}", args.name, resolution, width, height, "webp");
 
             if args.output_cli {
 
                 let output = OutputCmd{
                     image: BASE64_STANDARD.encode(&*webp),
-                    name: args.name.clone(),
+                    name: file_name,
                     resolution: resolution,
                     format: "webp".to_string(),
                 };
@@ -217,8 +227,8 @@ fn convert_image(args: ConverArgs) {
             let image_img: imgref::Img<&[rgb::RGBA<u8>]> = imgref::Img::new(image_vec1.buf(), image_resized.dimensions().0 as usize, image_resized.dimensions().1 as usize);
         
             let res = ravif::Encoder::new()
-                .with_quality(80.)
-                .with_speed(2)
+                .with_quality(args.avif_quality as f32)
+                .with_speed(args.avif_speed)
                 .encode_rgba( image_img);
             
             if res.is_err(){
@@ -227,7 +237,7 @@ fn convert_image(args: ConverArgs) {
             }
             
             let avif_file = res.unwrap().avif_file;
-            let file_name = format!("{}-{}px.{}", args.name, width, "avif");
+            let file_name = format!("{}-{}i-{}x{}.{}", args.name, resolution, width, height, "avif");
 
             if args.output_cli {
 
