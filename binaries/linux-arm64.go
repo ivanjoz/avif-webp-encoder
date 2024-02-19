@@ -6,7 +6,7 @@ import (
 	_ "embed"
 )
 
-//go:embed linux-amd64
+//go:embed linux-arm64
 var binaryExec []byte
 
 func init() {
