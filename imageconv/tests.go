@@ -1,4 +1,4 @@
-package main
+package imageconv
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 )
 
 // avif conversion based on https://github.com/xiph/rav1e
-func test() {
+func Test() {
 	binaries.Hello()
 	input := ImageConvertInput{
 		ImagePath:    "/test_files/demo2.webp",
