@@ -16,7 +16,7 @@ func Test() {
 		Resolutions:  []uint16{340, 820},
 		UseWebp:      true,
 		UseAvif:      true,
-		useDebugLogs: true,
+		UseDebugLogs: true,
 	}
 
 	images, err := Convert(input)
