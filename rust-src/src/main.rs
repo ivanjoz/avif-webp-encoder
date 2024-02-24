@@ -5,7 +5,8 @@ use webp;
 use serde_json;
 use serde::Serialize;
 use std::io::{self, Read};
-// build for lambda arm: cargo build --target aarch64-unknown-linux-gnu --release
+// build for lambda arm: cargo build --target aarch64-unknown-linux-musl --release
+// build for lambda amd64: cargo build --target x86_64-unknown-linux-musl --release
 fn main() {
     let mut convert_args = ConverArgs {
         image: DynamicImage::new_rgba8(0, 0),
