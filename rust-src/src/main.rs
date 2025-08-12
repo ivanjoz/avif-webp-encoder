@@ -1,10 +1,13 @@
-use image::{io::Reader as ImageReader, DynamicImage, GenericImageView};
+use image::{imageops, DynamicImage, GenericImageView, Rgba, RgbaImage};
 use load_image::{self, export::rgb::{self}};
 use base64::prelude::*;
+use base64::engine::general_purpose::{STANDARD};
+use base64::Engine;
 use webp;
 use serde_json;
 use serde::Serialize;
 use std::io::{self, Read};
+use thumbhash;
 // build for lambda arm: cargo build --target aarch64-unknown-linux-musl --release
 // build for lambda amd64: cargo build --target x86_64-unknown-linux-musl --release
 fn main() {
@@ -19,6 +22,7 @@ fn main() {
         avif_speed: 3,
         use_webp: false,
         use_avif: false,
+        use_thumbhash: 0,
         output_cli: false,
     };
 
@@ -95,7 +99,7 @@ fn main() {
         
         println!("Reading image: {}",image_path);
 
-        let image_result = ImageReader::open(&image_path);
+        let image_result = image::ImageReader::open(&image_path);
         if image_result.is_err(){
             println!("Error: reading image: {}",image_result.err().unwrap().to_string());
             return;
@@ -170,6 +174,74 @@ fn convert_image(args: ConverArgs) {
         dimensions.push((resolution, new_width, new_height));   
     }
 
+    let mut thumbnail: Option<RgbaImage> = None;
+    let mut thumbhash_base64_string: String = "".to_string();
+
+    if args.use_thumbhash == 2 {
+        // --- Code for white-padded, centered thumbnail ---
+        let target_size = 100;
+        let (width, height) = args.image.dimensions();
+        
+        // Calculate the new size to fit proportionally within 100x100
+        let (new_width, new_height) = {
+            let ratio = width as f64 / height as f64;
+            if ratio > 1.0 { // Landscape or square
+                (target_size, (target_size as f64 / ratio).round() as u32)
+            } else { // Portrait
+                ((target_size as f64 * ratio).round() as u32, target_size)
+            }
+        };
+
+        // Resize the original image to the new proportional dimensions
+        let resized_img = imageops::resize(
+            &args.image,
+            new_width,
+            new_height,
+            imageops::FilterType::Triangle,
+        );
+
+        // Create a new 100x100 white canvas
+        let mut canvas = RgbaImage::from_pixel(target_size, target_size, Rgba([255, 255, 255, 255]));
+
+        // Calculate the position to paste the resized image (centered)
+        let x_offset = (target_size - new_width) / 2;
+        let y_offset = (target_size - new_height) / 2;
+
+        // Paste the resized image onto the canvas
+        imageops::overlay(&mut canvas, &resized_img, x_offset.into(), y_offset.into());
+
+        thumbnail = Some(canvas);
+        
+    } else if args.use_thumbhash == 1 {
+        // --- Code for the default, non-padded resize ---
+        thumbnail = Some(imageops::resize(
+            &args.image,
+            100,
+            100,
+            imageops::FilterType::Triangle,
+        ));
+    }
+
+    if args.use_thumbhash > 0 {
+        if let Some(thumbnail) = &thumbnail {
+            // Get the image dimensions and raw RGBA pixel data from the final 'thumbnail'
+            let (width, height) = thumbnail.dimensions();
+            let rgba_data = thumbnail.as_raw();
+
+            // Generate the ThumbHash from the pixel data.
+            let thumbhash_vec = thumbhash::rgba_to_thumb_hash(
+                width as usize,
+                height as usize,
+                &rgba_data,
+            );
+
+            thumbhash_base64_string = STANDARD.encode(&thumbhash_vec);
+        } else {
+            println!("Error: Thumbnail was not generated for thumbhash.");
+            return;
+        }
+    }
+
     // Crea los archivos .webp
     for (resolution, width, height) in dimensions {
         let image_resized = args.image.resize(
@@ -195,6 +267,7 @@ fn convert_image(args: ConverArgs) {
                     name: file_name,
                     resolution: resolution,
                     format: "webp".to_string(),
+                    thumbhash: thumbhash_base64_string.clone()
                 };
 
                 let output_json = serde_json::to_string(&output).unwrap();
@@ -247,6 +320,7 @@ fn convert_image(args: ConverArgs) {
                     name: file_name,
                     resolution: resolution,
                     format: "avif".to_string(),
+                    thumbhash: thumbhash_base64_string.clone()
                 };
 
                 let output_json = serde_json::to_string(&output).unwrap();
@@ -279,6 +353,7 @@ struct ConverArgs {
     avif_speed: u8,
     use_webp: bool,
     use_avif: bool,
+    use_thumbhash: u32,
     output_cli: bool,
 }
 
@@ -288,4 +363,5 @@ struct OutputCmd {
     name: String,
     resolution: u32,
     format: String,
+    thumbhash: String,
 }
