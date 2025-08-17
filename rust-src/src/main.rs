@@ -26,6 +26,8 @@ fn main() {
         output_cli: false,
     };
 
+    print!("Version 0.1.2");
+
     //get execution arguments in a variable
     let args: Vec<String> = std::env::args().collect();
     let current_dir = std::env::current_dir().unwrap().into_os_string().into_string().unwrap();
@@ -133,6 +135,8 @@ fn main() {
             } else if arg_name == "-avif-speed" {
                 convert_args.use_avif = true;
                 convert_args.avif_speed = arg_value.parse::<u8>().unwrap();
+            } else if arg_name == "-thumbhash" {
+                convert_args.use_thumbhash = arg_value.parse::<u8>().unwrap();
             } else if arg_name == "-output" {
                 convert_args.output_directory = arg_value.to_string();
             } else if arg_name == "-resolutions" {
@@ -154,7 +158,7 @@ fn main() {
         }
     }
 
-    println!("Convertig: WEBP={} | AVIF={} | OUTPUT_CLI={}", convert_args.use_webp, convert_args.use_avif, convert_args.output_cli);
+    println!("Convertig: WEBP={} | AVIF={} | OUTPUT_CLI={} (v2)", convert_args.use_webp, convert_args.use_avif, convert_args.output_cli);
     convert_image(convert_args);
 }
 
@@ -176,6 +180,8 @@ fn convert_image(args: ConverArgs) {
 
     let mut thumbnail: Option<RgbaImage> = None;
     let mut thumbhash_base64_string: String = "".to_string();
+
+    println!("Usando use_thumbhash?: {}", args.use_thumbhash);
 
     if args.use_thumbhash == 2 {
         // --- Code for white-padded, centered thumbnail ---
@@ -236,6 +242,8 @@ fn convert_image(args: ConverArgs) {
             );
 
             thumbhash_base64_string = STANDARD.encode(&thumbhash_vec);
+
+            println!("Thumbhash creado:: {}", thumbhash_base64_string);
         } else {
             println!("Error: Thumbnail was not generated for thumbhash.");
             return;
@@ -353,7 +361,7 @@ struct ConverArgs {
     avif_speed: u8,
     use_webp: bool,
     use_avif: bool,
-    use_thumbhash: u32,
+    use_thumbhash: u8,
     output_cli: bool,
 }
 

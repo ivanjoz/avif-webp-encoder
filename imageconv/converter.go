@@ -54,6 +54,9 @@ func Convert(args ImageConvertInput) ([]Image, error) {
 	if args.UseWebp || args.WebpQuality > 0 || args.WebpMethod > 0 {
 		argv = append(argv, "-webp")
 	}
+	if args.UseThumbhash > 0 {
+		argv = append(argv, fmt.Sprintf("-thumbhash=%v", args.UseThumbhash))
+	}
 
 	var cmd *exec.Cmd
 
@@ -183,6 +186,7 @@ type ImageConvertInput struct {
 	OutputDirectory    string   // If want to save the images to directory
 	UseDebugLogs       bool     // Default false
 	TempDirOfExecution string
+	UseThumbhash       uint8 // 1 = normal tumbhash | 2 = force square tumbhash
 }
 
 type Image struct {

@@ -11,12 +11,14 @@ import (
 // avif conversion based on https://github.com/xiph/rav1e
 func Test() {
 	binaries.Hello()
+
 	input := ImageConvertInput{
 		ImagePath:    "/test_files/demo2.webp",
 		Resolutions:  []uint16{340, 820},
 		UseWebp:      true,
 		UseAvif:      true,
 		UseDebugLogs: true,
+		UseThumbhash: 1,
 	}
 
 	images, err := Convert(input)
